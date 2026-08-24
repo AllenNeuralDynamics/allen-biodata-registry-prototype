@@ -1,0 +1,13 @@
+{
+  "$id": "https://allen-biodata-registry.example.com/schemas/ValidationStatus.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Validation status (Aurora ``validation_status`` enum, R4).",
+  "enum": [
+    "valid",
+    "invalid",
+    "unvalidated",
+    "schema-deprecated"
+  ],
+  "title": "ValidationStatus",
+  "type": "string"
+}

@@ -1,0 +1,6 @@
+# Runtime requirements for the Allen BioData Registry Python client.
+# Mirrors `[project.dependencies]` in pyproject.toml so `pip install -r
+# requirements.txt` works for environments that don't read PEP 517
+# metadata (e.g., older AWS Lambda packagers).
+requests>=2.31,<3.0
+boto3>=1.34,<2.0

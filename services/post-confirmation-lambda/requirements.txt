@@ -1,0 +1,13 @@
+# Runtime dependencies for the Cognito Post-Confirmation Lambda.
+#
+# pg8000 is pure-Python (no libpq native bindings), which keeps the
+# deployment package fully portable — `terraform apply` from any
+# developer workstation produces a working Lambda zip without
+# platform-specific wheels or Docker-based builds.
+#
+# boto3 is provided by the AWS Lambda Python 3.12 runtime, so we
+# intentionally do NOT pin it here — including it would inflate the
+# package and risk version drift with the runtime. The boto3 SDK shipped
+# with the runtime is always recent enough for `rds.generate_db_auth_token`,
+# which has been stable since 2018.
+pg8000>=1.30.0,<2.0.0

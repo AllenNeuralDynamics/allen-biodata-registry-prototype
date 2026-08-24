@@ -1,0 +1,63 @@
+{
+  "$defs": {
+    "LifecycleState": {
+      "description": "Data_Asset lifecycle state (Aurora ``lifecycle_state`` enum, R27.1).",
+      "enum": [
+        "draft",
+        "registered",
+        "published",
+        "archived"
+      ],
+      "title": "LifecycleState",
+      "type": "string"
+    }
+  },
+  "$id": "https://allen-biodata-registry.example.com/schemas/LifecycleTransition.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "A single Data_Asset state-machine transition (R27.6).\n\nMirrors ``lifecycle_transition`` table. One row per successful\ntransition; rejected transitions never write here (they surface\nas :class:`InvalidStateTransition` errors instead).",
+  "properties": {
+    "data_asset_id": {
+      "description": "Asset whose lifecycle changed.",
+      "format": "uuid",
+      "title": "Data Asset Id",
+      "type": "string"
+    },
+    "id": {
+      "description": "BIGSERIAL transition id.",
+      "minimum": 1,
+      "title": "Id",
+      "type": "integer"
+    },
+    "new_state": {
+      "$ref": "#/$defs/LifecycleState",
+      "description": "State after."
+    },
+    "previous_state": {
+      "$ref": "#/$defs/LifecycleState",
+      "description": "State before."
+    },
+    "timestamp": {
+      "description": "UTC timestamp.",
+      "format": "date-time",
+      "title": "Timestamp",
+      "type": "string"
+    },
+    "user_id": {
+      "description": "User who initiated the transition.",
+      "format": "uuid",
+      "title": "User Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "data_asset_id",
+    "user_id",
+    "timestamp",
+    "previous_state",
+    "new_state"
+  ],
+  "title": "LifecycleTransition",
+  "type": "object"
+}

@@ -1,0 +1,25 @@
+{
+  "$id": "https://allen-biodata-registry.example.com/schemas/Subject.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "description": "Biological subject (animal, cell line, etc.) — shared across assets.\n\n**PoC placeholder.** The canonical definition lives in the ``aind-data-schema`` Pydantic library; install ``aind-data-schema>=2.7,<3`` in the build environment and re-run ``scripts/export_schemas.py`` to replace this placeholder with the real schema.",
+  "properties": {
+    "id": {
+      "description": "Server-generated UUID of the entity row in Aurora.",
+      "format": "uuid",
+      "type": "string"
+    },
+    "metadata": {
+      "additionalProperties": true,
+      "description": "Pass-through JSONB blob conforming to the upstream aind-data-schema model. Validated by Validation_Lambda.",
+      "type": "object"
+    }
+  },
+  "required": [
+    "metadata"
+  ],
+  "title": "Subject",
+  "type": "object",
+  "x-aind-placeholder": true,
+  "x-aind-source": "aind-data-schema"
+}

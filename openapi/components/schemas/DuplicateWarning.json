@@ -1,0 +1,40 @@
+{
+  "$id": "https://allen-biodata-registry.example.com/schemas/DuplicateWarning.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Soft-warning entry attached to a 201 Created response (R3, R26).\n\nPer design.md §Components.Duplicates_Lambda the only 409 path is\nthe database-level unique constraint on ``data_asset.storage_uri``;\nsimilarity-based candidates are advisory and surface here as\n``warnings: [...]`` on the success response.",
+  "properties": {
+    "existing_asset_id": {
+      "description": "Id of the existing asset that triggered the warning.",
+      "format": "uuid",
+      "title": "Existing Asset Id",
+      "type": "string"
+    },
+    "reason": {
+      "description": "Short explanation, e.g. ``vector_cosine`` or ``trigram_name``, for UI display.",
+      "title": "Reason",
+      "type": "string"
+    },
+    "similarity_score": {
+      "description": "Similarity in [0, 1].",
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Similarity Score",
+      "type": "number"
+    },
+    "type": {
+      "default": "likely_duplicate",
+      "description": "Always ``likely_duplicate`` for now; the field is reserved for future warning categories.",
+      "pattern": "^likely_duplicate$",
+      "title": "Type",
+      "type": "string"
+    }
+  },
+  "required": [
+    "existing_asset_id",
+    "similarity_score",
+    "reason"
+  ],
+  "title": "DuplicateWarning",
+  "type": "object"
+}

@@ -1,0 +1,23 @@
+# Terraform working dir / provider cache
+.terraform/
+.terraform.lock.hcl.local
+
+# Plans (re-generate via `terraform plan -out=...`)
+*.tfplan
+*.tfplan.json
+
+# Local state — this composition uses the S3 backend, but defensively
+# refuse to commit any local state that ends up here.
+terraform.tfstate
+terraform.tfstate.*
+terraform.tfstate.backup
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Local override files (per-operator experimentation)
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json

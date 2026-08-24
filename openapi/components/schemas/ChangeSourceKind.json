@@ -1,0 +1,14 @@
+{
+  "$id": "https://allen-biodata-registry.example.com/schemas/ChangeSourceKind.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Provenance of an entity revision (Aurora ``change_source_kind``, R6).",
+  "enum": [
+    "manual",
+    "agent",
+    "api",
+    "merge",
+    "ETL"
+  ],
+  "title": "ChangeSourceKind",
+  "type": "string"
+}

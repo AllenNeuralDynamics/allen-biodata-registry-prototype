@@ -1,0 +1,54 @@
+{
+  "examples": [
+    {
+      "question": "Show me all behavior datasets from the last month",
+      "sql": "SELECT id, name, storage_uri, lifecycle_state, created_at FROM data_asset WHERE data_type = 'behavior' AND created_at >= now() - INTERVAL '1 month' ORDER BY created_at DESC LIMIT 100;",
+      "notes": "RLS filters by space visibility automatically; no need for explicit org/space WHERE clauses."
+    },
+    {
+      "question": "Find all subjects of the species mouse",
+      "sql": "SELECT id, subject_id, species, sex, genotype FROM subject WHERE species ILIKE 'mus musculus' OR species ILIKE 'mouse' ORDER BY subject_id LIMIT 100;",
+      "notes": "Always use ILIKE for species — labs spell it inconsistently. Consider mapping via the ontology table."
+    },
+    {
+      "question": "Which datasets failed validation?",
+      "sql": "SELECT id, name, validation_status, validation_errors FROM data_asset WHERE validation_status = 'invalid' ORDER BY updated_at DESC LIMIT 100;",
+      "notes": "validation_errors is JSONB — a list of {field, error} objects."
+    },
+    {
+      "question": "How many published datasets per modality?",
+      "sql": "SELECT data_type, COUNT(*) AS n FROM data_asset WHERE lifecycle_state = 'published' GROUP BY data_type ORDER BY n DESC;",
+      "notes": "lifecycle_state is one of: draft, registered, published, archived."
+    },
+    {
+      "question": "Find all subjects with a specific genotype gene",
+      "sql": "SELECT s.id, s.subject_id, s.genotype FROM subject s WHERE s.metadata->'genotype_alleles' @> '[{\"gene\": \"Pvalb\"}]'::jsonb LIMIT 100;",
+      "notes": "Genotype alleles live in metadata.genotype_alleles as a JSONB array; @> is containment."
+    },
+    {
+      "question": "Show recent lifecycle transitions for an asset",
+      "sql": "SELECT previous_state, new_state, timestamp, user_id FROM lifecycle_transition WHERE data_asset_id = $1 ORDER BY timestamp DESC LIMIT 50;",
+      "notes": "Use parameterized query — do NOT inline user-supplied UUIDs."
+    },
+    {
+      "question": "Which datasets reference a specific subject?",
+      "sql": "SELECT da.id, da.name, da.data_type FROM data_asset da JOIN data_asset_subject das ON das.data_asset_id = da.id WHERE das.subject_id = $1;",
+      "notes": "Many-to-many junction table. Always JOIN through data_asset_subject."
+    },
+    {
+      "question": "Audit trail for an entity",
+      "sql": "SELECT revision_number, change_source, timestamp, user_id FROM entity_revision WHERE entity_type = $1 AND entity_id = $2 ORDER BY revision_number DESC;",
+      "notes": "entity_revision is immutable. UPDATE/DELETE are revoked at the database role level."
+    },
+    {
+      "question": "Find suspected duplicate subjects with high similarity",
+      "sql": "SELECT entity_a_id, entity_b_id, similarity_score, flagged_at FROM duplicate_flag WHERE entity_type = 'subject' AND dismissed = false AND similarity_score >= 0.9 ORDER BY similarity_score DESC, flagged_at DESC LIMIT 50;",
+      "notes": "duplicate_flag.dismissed = true means an admin has reviewed and ruled the pair distinct."
+    },
+    {
+      "question": "Which schemas have invalid datasets?",
+      "sql": "SELECT sd.id AS schema_id, sd.name, COUNT(*) FILTER (WHERE da.validation_status = 'invalid') AS invalid_count FROM schema_definition sd LEFT JOIN data_asset da ON da.schema_id = sd.id GROUP BY sd.id, sd.name HAVING COUNT(*) FILTER (WHERE da.validation_status = 'invalid') > 0 ORDER BY invalid_count DESC;",
+      "notes": "Useful when a new schema version is published and we want to see deprecation impact."
+    }
+  ]
+}

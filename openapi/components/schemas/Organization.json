@@ -1,0 +1,43 @@
+{
+  "$id": "https://allen-biodata-registry.example.com/schemas/Organization.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Top-level tenant (R9.1).\n\nMirrors ``organization`` table. ``name`` is the unique stable\nidentifier; ``display_name`` is the human-friendly label surfaced\nin the UI. We split the two so renaming for display does not\ncascade into FK churn.",
+  "properties": {
+    "created_at": {
+      "description": "Creation timestamp (UTC).",
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "display_name": {
+      "description": "Human-readable organization name shown in the UI.",
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "Display Name",
+      "type": "string"
+    },
+    "id": {
+      "description": "Server-generated UUID. Immutable.",
+      "format": "uuid",
+      "title": "Id",
+      "type": "string"
+    },
+    "name": {
+      "description": "Stable lowercase identifier (slug). Unique across the registry. Used in URLs and SNS topic names.",
+      "maxLength": 255,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_-]*$",
+      "title": "Name",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "display_name",
+    "created_at"
+  ],
+  "title": "Organization",
+  "type": "object"
+}

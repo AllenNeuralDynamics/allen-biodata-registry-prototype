@@ -1,0 +1,68 @@
+{
+  "index_patterns": ["subject*"],
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 1,
+      "knn": true,
+      "knn.algo_param.ef_search": 100,
+      "analysis": {
+        "filter": {
+          "biodata_synonyms": {
+            "type": "synonym_graph",
+            "synonyms_path": "biodata_synonyms.txt",
+            "updateable": false
+          }
+        },
+        "analyzer": {
+          "biodata_text": {
+            "type": "custom",
+            "tokenizer": "standard",
+            "filter": ["lowercase", "biodata_synonyms"]
+          }
+        }
+      }
+    },
+    "mappings": {
+      "properties": {
+        "id":         { "type": "keyword" },
+        "subject_id": { "type": "keyword" },
+        "space_id":   { "type": "keyword" },
+        "org_id":     { "type": "keyword" },
+        "species":    { "type": "keyword" },
+        "sex":        { "type": "keyword" },
+        "name": {
+          "type": "text",
+          "analyzer": "biodata_text",
+          "fields": {
+            "raw": { "type": "keyword", "ignore_above": 256 }
+          }
+        },
+        "name_suggest": {
+          "type": "search_as_you_type",
+          "max_shingle_size": 3
+        },
+        "description": {
+          "type": "text",
+          "analyzer": "biodata_text"
+        },
+        "description_vec": {
+          "type": "knn_vector",
+          "dimension": 1024,
+          "method": {
+            "name": "hnsw",
+            "engine": "nmslib",
+            "space_type": "cosinesimil",
+            "parameters": {
+              "ef_construction": 128,
+              "m": 24
+            }
+          }
+        },
+        "embedding_pending": { "type": "boolean" },
+        "created_at":        { "type": "date" },
+        "updated_at":        { "type": "date" }
+      }
+    }
+  }
+}

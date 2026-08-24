@@ -1,0 +1,20 @@
+{
+  "description": "NCBI Taxonomy mappings for the species values used in the Allen BioData Registry. Use these to normalize free-text species mentions in NL queries to canonical taxids.",
+  "source": "https://www.ncbi.nlm.nih.gov/taxonomy",
+  "as_of": "2026-05-22",
+  "mappings": [
+    {"taxid": 10090, "scientific_name": "Mus musculus",   "common_names": ["mouse", "house mouse", "lab mouse"]},
+    {"taxid": 10116, "scientific_name": "Rattus norvegicus", "common_names": ["rat", "brown rat", "Norway rat"]},
+    {"taxid":  7955, "scientific_name": "Danio rerio",    "common_names": ["zebrafish", "zebra fish"]},
+    {"taxid":  9606, "scientific_name": "Homo sapiens",   "common_names": ["human"]},
+    {"taxid":  9544, "scientific_name": "Macaca mulatta", "common_names": ["rhesus macaque", "rhesus monkey"]},
+    {"taxid":  9483, "scientific_name": "Callithrix jacchus", "common_names": ["common marmoset", "marmoset"]},
+    {"taxid":  6239, "scientific_name": "Caenorhabditis elegans", "common_names": ["C. elegans", "nematode"]},
+    {"taxid":  7227, "scientific_name": "Drosophila melanogaster", "common_names": ["fruit fly", "drosophila"]},
+    {"taxid":  9913, "scientific_name": "Bos taurus",     "common_names": ["cow", "cattle"]},
+    {"taxid":  9615, "scientific_name": "Canis lupus familiaris", "common_names": ["dog", "domestic dog"]},
+    {"taxid":  9685, "scientific_name": "Felis catus",    "common_names": ["cat", "domestic cat"]},
+    {"taxid": 28377, "scientific_name": "Anolis carolinensis", "common_names": ["green anole", "Carolina anole"]}
+  ],
+  "usage": "When a user asks 'show me all rat experiments', map 'rat' → taxid 10116 → 'Rattus norvegicus' before generating the SQL: WHERE subject.species ILIKE 'Rattus norvegicus' OR subject.metadata->>'species_taxid' = '10116'."
+}

@@ -1,0 +1,18 @@
+# Python build / cache artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.hypothesis/
+
+# Editable-install artifact
+*.egg-link
+
+# Editor scratch
+.vscode/
+.idea/
+
+# Layer build output (Terraform writes the staged build here)
+build/
+dist/

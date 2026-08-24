@@ -1,0 +1,66 @@
+# Pip-installable Python client for the Allen BioData Registry REST API.
+#
+# Distributed as `biodata-registry-client` (PyPI name) — the importable
+# package is `biodata_registry_client`. Wraps every operation in
+# `openapi/openapi.yaml` and handles transparent Cognito ID-token
+# refresh (Task 13.2 / R15).
+#
+# Dependency surface deliberately stays small (`requests` + `boto3`):
+# the registry's external consumers should not have to install the
+# Lambda Layer's heavy dependencies (`aind-data-schema`, `psycopg`,
+# `openapi-core`) just to call the API. The bodies passed to / returned
+# from methods are plain `dict[str, Any]`; consumers who want strongly
+# typed Pydantic models can import them directly from
+# `aind-data-schema` independently of this client.
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "biodata-registry-client"
+version = "0.1.0"
+description = "Pip-installable Python client for the Allen BioData Registry REST API. Hand-authored to mirror the openapi-python-client output until the generator is available in the build environment."
+requires-python = ">=3.12"
+
+dependencies = [
+    # The HTTP layer. Pinned with a generous upper bound — `requests`
+    # has a stable API and breaking changes are rare.
+    "requests>=2.31,<3.0",
+    # Cognito REFRESH_TOKEN_AUTH. Imported lazily so callers who only
+    # use a pre-minted id_token don't pay the import cost.
+    "boto3>=1.34,<2.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+    # `responses` mocks at the requests adapter level so we exercise
+    # the real `requests.Session` codepath in `_http.py`.
+    "responses>=0.25,<1.0",
+    # `freezegun` could be used for the token-refresh tests, but we
+    # prefer dependency injection (see `_token.py`'s `time_func`
+    # parameter) — it's testable without monkey-patching the clock.
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["biodata_registry_client*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config"
+filterwarnings = [
+    "error",
+    "default::DeprecationWarning:botocore",
+    "default::DeprecationWarning:boto3",
+    "default::DeprecationWarning:urllib3",
+    # `requests` warns at import time when urllib3 is newer than its
+    # tested upper bound (a common state on systems that pin urllib3
+    # for other libraries). The warning is informational — the code
+    # works — and not actionable from this package, so we let it
+    # through rather than failing every test on any environment with
+    # a newer urllib3. We match by message rather than category
+    # because importing the category itself triggers the warning.
+    "default:.*urllib3.*doesn't match a supported version.*:Warning",
+]

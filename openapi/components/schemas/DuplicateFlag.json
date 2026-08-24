@@ -1,0 +1,106 @@
+{
+  "$defs": {
+    "EntityType": {
+      "description": "Closed set of entity types the revision history tracks.\n\nKept in lockstep with the shared and asset-specific entity tables\nin design.md §Data Models.Aurora.",
+      "enum": [
+        "data_asset",
+        "subject",
+        "instrument",
+        "rig",
+        "procedures",
+        "session",
+        "acquisition",
+        "processing",
+        "quality_control",
+        "data_description"
+      ],
+      "title": "EntityType",
+      "type": "string"
+    }
+  },
+  "$id": "https://allen-biodata-registry.example.com/schemas/DuplicateFlag.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Admin-reviewable duplicate signal (R3.4, R26.2).\n\nMirrors ``duplicate_flag`` table. ``similarity_score`` is bounded\n[0, 1]; rows are created either by the synchronous duplicate\ncheck on registration or by the EventBridge-scheduled background\nscan (R3.5).",
+  "properties": {
+    "dismissed": {
+      "default": false,
+      "description": "True after an admin clicks 'Dismiss' (R26.5).",
+      "title": "Dismissed",
+      "type": "boolean"
+    },
+    "dismissed_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Dismissal timestamp; null until dismissal.",
+      "title": "Dismissed At"
+    },
+    "dismissed_by": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "User who dismissed; null until dismissal.",
+      "title": "Dismissed By"
+    },
+    "entity_a_id": {
+      "description": "One side of the candidate pair.",
+      "format": "uuid",
+      "title": "Entity A Id",
+      "type": "string"
+    },
+    "entity_b_id": {
+      "description": "Other side of the candidate pair.",
+      "format": "uuid",
+      "title": "Entity B Id",
+      "type": "string"
+    },
+    "entity_type": {
+      "$ref": "#/$defs/EntityType",
+      "description": "Which entity table the flagged pair lives in."
+    },
+    "flagged_at": {
+      "description": "When the flag was created.",
+      "format": "date-time",
+      "title": "Flagged At",
+      "type": "string"
+    },
+    "id": {
+      "description": "Server-generated UUID.",
+      "format": "uuid",
+      "title": "Id",
+      "type": "string"
+    },
+    "similarity_score": {
+      "description": "Similarity in [0, 1]. Computed by exact URI match (1.0), trigram similarity, or pgvector cosine — the source is captured in the ``flag_meta`` JSONB on the underlying row.",
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Similarity Score",
+      "type": "number"
+    }
+  },
+  "required": [
+    "id",
+    "entity_type",
+    "entity_a_id",
+    "entity_b_id",
+    "similarity_score",
+    "flagged_at"
+  ],
+  "title": "DuplicateFlag",
+  "type": "object"
+}

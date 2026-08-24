@@ -1,0 +1,14 @@
+# Runtime dependencies for the Seed Smoke Test Lambda.
+#
+# pg8000 is pure-Python (no libpq native bindings), which keeps the
+# deployment package fully portable — `terraform apply` from any
+# developer workstation produces a working Lambda zip without
+# platform-specific wheels or Docker-based builds. Mirrors the
+# migration-runner / seeder Lambda choices for consistency.
+#
+# boto3 is provided by the AWS Lambda Python 3.12 runtime, so we
+# intentionally do NOT pin it here — the runtime SDK already exposes
+# `rds.generate_db_auth_token`, which is the only AWS API the smoke
+# test uses. Bundling boto3 would just inflate the deployment package
+# and risk version drift.
+pg8000>=1.30.0,<2.0.0

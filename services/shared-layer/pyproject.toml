@@ -1,0 +1,57 @@
+# Test/dev tooling for the shared Lambda Layer (biodata_registry_shared).
+#
+# This project file exists primarily to (a) declare the test
+# dependencies for unit + property-based tests, (b) configure pytest's
+# discovery/coverage/strictness defaults, and (c) make the package
+# importable as `biodata_registry_shared.*` when run from anywhere.
+#
+# At runtime (Lambda Layer execution), `requirements.txt` plus the
+# `biodata_registry_shared/` package are the source of truth. Terraform
+# packages those into the Layer zip — pyproject.toml plays no role in
+# the live image.
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "biodata-registry-shared"
+version = "0.1.0"
+description = "Shared Lambda Layer for the Allen BioData Registry PoC: aind-data-schema, psycopg, auth-context parsing, RLS-aware Postgres connection helper, OpenAPI middleware, structured error shaper."
+requires-python = ">=3.12"
+
+# Runtime deps mirror requirements.txt. We pin the same upper bounds
+# here so `pip install -e .[test]` for local development picks up
+# the same wheel set the Layer will ship with.
+dependencies = [
+    "aind-data-schema>=2.7.0,<3.0.0",
+    "psycopg[binary]>=3.2.0,<4.0.0",
+    "openapi-core>=0.19.0,<0.24.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+    "hypothesis>=6.100",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["biodata_registry_shared*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config"
+filterwarnings = [
+    # We want our own code to run cleanly, but third-party deprecation
+    # warnings (psycopg, openapi-core's transitive jsonschema) shouldn't
+    # fail the suite.
+    "error",
+    "default::DeprecationWarning:psycopg",
+    "default::DeprecationWarning:psycopg_binary",
+    "default::DeprecationWarning:openapi_core",
+    "default::DeprecationWarning:openapi_schema_validator",
+    "default::DeprecationWarning:jsonschema",
+    "default::DeprecationWarning:jsonschema_path",
+    "default::DeprecationWarning:referencing",
+]

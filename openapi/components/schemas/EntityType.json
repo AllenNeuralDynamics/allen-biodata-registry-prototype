@@ -1,0 +1,19 @@
+{
+  "$id": "https://allen-biodata-registry.example.com/schemas/EntityType.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Closed set of entity types the revision history tracks.\n\n    Kept in lockstep with the shared and asset-specific entity tables\n    in design.md §Data Models.Aurora.",
+  "enum": [
+    "data_asset",
+    "subject",
+    "instrument",
+    "rig",
+    "procedures",
+    "session",
+    "acquisition",
+    "processing",
+    "quality_control",
+    "data_description"
+  ],
+  "title": "EntityType",
+  "type": "string"
+}

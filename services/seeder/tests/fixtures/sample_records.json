@@ -1,0 +1,162 @@
+[
+  {
+    "name": "exaSPIM_subject_695464_2024-09-12",
+    "description": "Whole-brain SPIM acquisition of subject 695464.",
+    "modality": "SPIM",
+    "schema_version": "0.20.0",
+    "location": {
+      "s3_uri": "s3://aind-open-data/exaSPIM_695464_2024-09-12_18-03-29"
+    },
+    "subject": {
+      "subject_id": "695464",
+      "species": "Mus musculus",
+      "sex": "M",
+      "date_of_birth": "2023-04-15",
+      "genotype": "Slc17a7-IRES2-Cre/wt;Camk2a-tTA/wt;Ai93(TITL-GCaMP6f)/wt"
+    },
+    "instrument": {
+      "instrument_id": "EXASPIM-001",
+      "instrument_type": "ExA-SPIM",
+      "manufacturer": "Allen Institute",
+      "model": "ExA-SPIM v2",
+      "serial_number": "AI-2024-001"
+    },
+    "rig": {
+      "rig_id": "exaSPIM-rig-1",
+      "modalities": ["SPIM"],
+      "location": "AIND, Seattle WA"
+    },
+    "procedures": {
+      "subject_id": "695464",
+      "surgery_date": "2024-08-30",
+      "protocol": "AIND-PROC-001",
+      "performed_by": "tech_a"
+    },
+    "session": {
+      "session_id": "exaSPIM-695464-S01",
+      "session_type": "imaging",
+      "session_start": "2024-09-12T18:03:29Z",
+      "session_end": "2024-09-12T22:14:11Z",
+      "experimenter": "imaging_team"
+    },
+    "acquisition": {
+      "acquisition_start": "2024-09-12T18:30:00Z",
+      "acquisition_end": "2024-09-12T22:00:00Z",
+      "parameters": {"laser_wavelength_nm": 488, "step_um": 1.5}
+    },
+    "processing": {
+      "processing_pipeline": "aind-spim-pipeline",
+      "version": "1.4.0",
+      "started_at": "2024-09-13T01:00:00Z",
+      "completed_at": "2024-09-13T07:42:00Z"
+    },
+    "quality_control": {
+      "qc_metric": "stitch_score",
+      "value": 0.94,
+      "unit": "ratio",
+      "status": "pass"
+    },
+    "data_description": {
+      "text": "Whole-brain ExA-SPIM dataset; mouse 695464.",
+      "license": "CC-BY-4.0",
+      "funding_source": "BICAN U01"
+    }
+  },
+  {
+    "name": "ophys_subject_695464_2024-08-01",
+    "description": "Two-photon imaging follow-up to behaviour cohort.",
+    "modality": "ophys",
+    "schema_version": "0.20.0",
+    "location": {
+      "s3_uri": "s3://aind-open-data/ophys_695464_2024-08-01_10-22-00"
+    },
+    "subject": {
+      "subject_id": "695464",
+      "species": "Mus musculus",
+      "sex": "M",
+      "date_of_birth": "2023-04-15",
+      "genotype": "Slc17a7-IRES2-Cre/wt;Camk2a-tTA/wt;Ai93(TITL-GCaMP6f)/wt"
+    },
+    "instrument": {
+      "instrument_id": "MESO-002",
+      "instrument_type": "mesoscope",
+      "manufacturer": "Thorlabs",
+      "model": "Bergamo II"
+    },
+    "rig": {
+      "rig_id": "mesoscope-rig-A",
+      "modalities": ["ophys", "behaviour"],
+      "location": "AIND, Seattle WA"
+    },
+    "session": {
+      "session_id": "ophys-695464-S03",
+      "session_type": "imaging",
+      "session_start": "2024-08-01T10:22:00Z",
+      "session_end": "2024-08-01T11:30:00Z"
+    },
+    "data_description": {
+      "text": "GCaMP6f calcium imaging during visual stimulation.",
+      "license": "CC-BY-4.0"
+    }
+  },
+  {
+    "name": "ephys_subject_700000_2024-10-05",
+    "description": "Neuropixels recording in V1.",
+    "modality": "ecephys",
+    "schema_version": "0.20.0",
+    "location": {
+      "s3_uri": "s3://aind-open-data/ecephys_700000_2024-10-05_09-00-00"
+    },
+    "subject": {
+      "subject_id": "700000",
+      "species": "Mus musculus",
+      "sex": "F",
+      "date_of_birth": "2024-01-12"
+    },
+    "instrument": {
+      "instrument_id": "NPX-2024-A",
+      "instrument_type": "Neuropixels probe",
+      "manufacturer": "imec",
+      "model": "Neuropixels 2.0",
+      "serial_number": "NPX-A1B2C3"
+    },
+    "session": {
+      "session_id": "ephys-700000-S01",
+      "session_type": "ecephys",
+      "session_start": "2024-10-05T09:00:00Z"
+    },
+    "acquisition": {
+      "acquisition_start": "2024-10-05T09:15:00Z",
+      "acquisition_end": "2024-10-05T10:45:00Z"
+    },
+    "quality_control": {
+      "qc_metric": "spike_yield",
+      "value": 350,
+      "unit": "units",
+      "status": "pass"
+    }
+  },
+  {
+    "storage_uri": "s3://aind-open-data/minimal_record_2024-11-01",
+    "modality": "behaviour"
+  },
+  {
+    "name": "fmost_subject_900001_2024-11-30",
+    "description": "fMOST whole-brain fluorescence imaging.",
+    "modality": "fMOST",
+    "schema_version": "0.20.0",
+    "location": "s3://aind-open-data/fmost_900001_2024-11-30_07-00-00",
+    "subject": {
+      "subject_id": "900001",
+      "species": "Mus musculus",
+      "sex": "U"
+    },
+    "instrument": {
+      "instrument_id": "FMOST-001",
+      "instrument_type": "fMOST"
+    },
+    "data_description": {
+      "text": "fMOST cytoarchitectural reference dataset."
+    }
+  }
+]

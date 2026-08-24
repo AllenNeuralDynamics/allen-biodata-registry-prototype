@@ -1,0 +1,22 @@
+-- =============================================================================
+-- Migration: 0014_opensearch_backfill.sql
+-- Purpose:   Backfill the OpenSearch (and DocumentDB) read stores with the
+--            ~2,300 assets that were bulk-loaded directly into Aurora by the
+--            seeder, bypassing the WAL CDC path. A no-op UPDATE bumps
+--            updated_at on every data_asset row, which emits a WAL change per
+--            row via the test_decoding logical replication slot. The
+--            cdc-reader drains those changes to the SQS FIFO queue and the
+--            Indexing_Lambda fans them out to OpenSearch + DocumentDB — the
+--            exact same path used for live writes.
+--
+-- Operational note:
+--   * This generates one WAL change per row. The cdc-reader drains up to
+--     1000 changes per invocation, so after applying this migration the
+--     operator invokes the cdc-reader a few times (or waits for the 1-min
+--     cron) until the slot is drained and the index is populated.
+--   * Safe to run once. It only touches updated_at; no lifecycle/validation
+--     state changes. Re-indexing is idempotent on the OpenSearch side
+--     (doc _id = asset id, so re-emits overwrite rather than duplicate).
+-- =============================================================================
+
+UPDATE data_asset SET updated_at = now();

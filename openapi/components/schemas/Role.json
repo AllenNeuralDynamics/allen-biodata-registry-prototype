@@ -1,0 +1,13 @@
+{
+  "$id": "https://allen-biodata-registry.example.com/schemas/Role.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Role kinds (mirrors Aurora ``role_kind`` enum, R9.2, R9.7).",
+  "enum": [
+    "org_admin",
+    "space_admin",
+    "data_administrator",
+    "viewer"
+  ],
+  "title": "Role",
+  "type": "string"
+}

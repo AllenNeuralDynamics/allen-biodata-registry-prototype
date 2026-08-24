@@ -1,0 +1,33 @@
+# Test/dev tooling for the Indexing Lambda.
+#
+# At runtime (Lambda execution), `requirements.txt` is the source of
+# truth — Terraform packages the code + the runtime deps from
+# `requirements.txt` into a deployment zip; pyproject.toml plays no
+# role in the live image.
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "biodata-registry-indexing"
+version = "0.1.0"
+description = "Indexing_Lambda — CDC consumer fanning out to DocumentDB and OpenSearch."
+requires-python = ">=3.12"
+
+# At test time we only need to import the handler, which uses lazy
+# imports for pymongo / opensearch-py / psycopg. The unit tests mock
+# every external dependency, so we don't install them locally.
+dependencies = []
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config"
+filterwarnings = [
+    "error",
+]

@@ -1,0 +1,1419 @@
+# Allen BioData Registry PoC — OpenAPI 3.0 specification.
+#
+# This file is the single source of truth for the registry's REST
+# surface. Lambdas validate incoming requests against it via the
+# OpenAPI middleware in `services/shared-layer`; the Python client
+# (`BioDataRegistryClient`, Task 13.2) is generated from it via
+# `openapi-python-client`.
+#
+# Component schemas live in `./components/schemas/<Model>.json` and
+# are regenerated from Pydantic models by `scripts/export_schemas.py`.
+# A CI gate (`python scripts/export_schemas.py --check`) fails the
+# build if the JSON files diverge from the Pydantic source — the
+# documentation and the database stay in lockstep by construction.
+#
+# Endpoint coverage and Lambda mapping (from design.md
+# §External Interfaces.API Gateway REST and §Components.Lambda Functions):
+#
+#   /healthz                    ─ public, no Lambda (API GW mock)
+#   /assets, /entities          ─ Registration_Lambda
+#   /assets/{id}/publish|...    ─ Lifecycle_Lambda
+#   /validate, /schemas         ─ Validation_Lambda
+#   /search, /suggest, /search/nl ─ Search_Lambda
+#   /duplicates                 ─ Duplicates_Lambda
+#   /orgs                       ─ Governance_Lambda
+#   /revisions                  ─ Revisions_Lambda
+#   /collections                ─ Collections_Lambda
+#   /metrics                    ─ Observability_Lambda
+#   /agent/chat                 ─ MetaData_Agent_Lambda
+#
+# Auth model (R14.4, R14.6, R8):
+#   • CognitoJWT — required on every endpoint except those listed
+#     under x-public-endpoints below.
+#   • Public endpoints — published data only; the Authorizer Lambda
+#     short-circuits when the route is in the public allowlist.
+
+openapi: 3.0.3
+
+info:
+  title: Allen BioData Registry API
+  version: 0.1.0-poc
+  description: |
+    Centralized metadata catalog for Allen Institute biological data assets.
+
+    See `design.md` §External Interfaces.API Gateway REST for the
+    architectural rationale and the Lambda-to-endpoint mapping. All
+    error responses follow the shape defined by Property 14
+    (`{code, message, details, request_id, timestamp}`); see
+    `components/schemas/ErrorResponse.json`.
+
+    Component schemas referenced via `$ref` are exported from Pydantic
+    models by `scripts/export_schemas.py`. **Do not hand-edit the JSON
+    files** — modify the Pydantic source (in `aind-data-schema` for
+    biological models, in `services/openapi-types/biodata_registry_types.py`
+    for governance models) and re-run the script.
+  contact:
+    name: Allen BioData Registry team
+    url: https://github.com/AllenInstitute/biodata-registry-poc
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.biodata-registry.alleninstitute.org
+    description: Production API Gateway endpoint (Allen Institute account).
+  - url: https://api-staging.biodata-registry.alleninstitute.org
+    description: Staging endpoint for QC checkpoints.
+
+# Tags group endpoints in generated SDK docs and the Swagger UI.
+tags:
+  - name: health
+    description: Liveness probes. No auth, no rate limit, no Lambda.
+  - name: assets
+    description: Data_Asset CRUD (Registration_Lambda).
+  - name: entities
+    description: Shared and asset-specific Metadata_Entity CRUD.
+  - name: lifecycle
+    description: State machine for Data_Asset lifecycle (Lifecycle_Lambda).
+  - name: validation
+    description: Schema management and metadata validation (Validation_Lambda).
+  - name: search
+    description: Faceted, autocomplete, and NL search (Search_Lambda).
+  - name: duplicates
+    description: Duplicate review and merge workflow (Duplicates_Lambda).
+  - name: governance
+    description: Organizations, spaces, roles, sharing grants (Governance_Lambda).
+  - name: revisions
+    description: Immutable revision history (Revisions_Lambda).
+  - name: collections
+    description: Curated groupings, nesting, DOI tracking (Collections_Lambda).
+  - name: metrics
+    description: Observability dashboards (Observability_Lambda).
+  - name: agent
+    description: Metadata agent chat proxy (MetaData_Agent_Lambda).
+
+# Vendor extension: explicit list of routes exempt from Cognito auth
+# (R14.6). The Authorizer Lambda reads this list to decide whether
+# to bypass JWT validation.
+x-public-endpoints:
+  - path: /healthz
+    methods: [GET]
+    rationale: Liveness probe; no PII, no business logic.
+  - path: /search
+    methods: [GET]
+    rationale: |
+      Public discovery of `lifecycle_state=published` data per R14.6.
+      For authenticated callers the Authorizer Lambda still runs and
+      injects the user context so RLS-filtered private data is also
+      returned in the same response.
+
+paths:
+  # -------------------------------------------------------------------------
+  # Health / status (public, no Lambda — API Gateway mock integration)
+  # -------------------------------------------------------------------------
+  /healthz:
+    get:
+      operationId: getHealth
+      tags: [health]
+      security: []
+      summary: Liveness probe.
+      description: |
+        Returns 200 if the API Gateway is reachable. Does not exercise
+        Aurora / DocumentDB / OpenSearch; for those, see
+        `GET /metrics/asset-counts` which round-trips Aurora as a side
+        effect.
+      responses:
+        '200':
+          description: Service is alive.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [status, request_id, timestamp]
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+                  request_id:
+                    type: string
+                    description: API Gateway request id for log correlation.
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  # -------------------------------------------------------------------------
+  # Asset CRUD (Registration_Lambda)
+  # -------------------------------------------------------------------------
+  /assets:
+    post:
+      operationId: createAsset
+      tags: [assets]
+      summary: Create a Data_Asset.
+      description: |
+        Inserts a new Data_Asset. The synchronous duplicate check
+        (Duplicates_Lambda, R3.1) runs inline and may attach a
+        `warnings` array with `{type: "likely_duplicate", ...}`
+        entries to the 201 response — those are advisory and never
+        block the write. The only 409 path is the database-level
+        unique-constraint violation on `data_asset.storage_uri`,
+        which surfaces as `DUPLICATE_ENTITY`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './components/schemas/DataAsset.json'
+      responses:
+        '201':
+          description: Asset created. May include soft duplicate warnings.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: './components/schemas/DataAsset.json'
+                  - $ref: './components/schemas/Warnings.json'
+        '400':
+          $ref: '#/components/responses/MissingProvenance'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/DuplicateEntity'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+    get:
+      operationId: listAssets
+      tags: [assets]
+      summary: List assets visible to the caller (RLS-filtered).
+      parameters:
+        - $ref: '#/components/parameters/SpaceIdQuery'
+        - $ref: '#/components/parameters/LifecycleStateQuery'
+        - $ref: '#/components/parameters/ValidationStatusQuery'
+        - $ref: '#/components/parameters/ValidatedOnlyQuery'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Page of assets.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: './components/schemas/DataAsset.json'
+                  next_cursor:
+                    type: string
+                    nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /assets/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      operationId: getAsset
+      tags: [assets]
+      summary: Get a single asset.
+      description: |
+        RLS-filtered. Returns 404 (not 403) when the asset is hidden
+        by the caller's RLS context, to prevent existence side-channels.
+        Returns 403 `SENSITIVE_ACCESS_DENIED` only when the caller
+        has structural visibility but lacks the sensitive-flag privilege
+        (R8).
+      responses:
+        '200':
+          description: The asset.
+          content:
+            application/json:
+              schema:
+                $ref: './components/schemas/DataAsset.json'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/SensitiveAccessDenied'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateAsset
+      tags: [assets]
+      summary: Update asset metadata (creates a revision).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './components/schemas/DataAsset.json'
+      responses:
+        '200':
+          description: Updated asset.
+          content:
+            application/json:
+              schema:
+                $ref: './components/schemas/DataAsset.json'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  # -------------------------------------------------------------------------
+  # Entity CRUD (Registration_Lambda)
+  # -------------------------------------------------------------------------
+  /entities/{type}:
+    parameters:
+      - $ref: '#/components/parameters/EntityTypePath'
+    post:
+      operationId: createEntity
+      tags: [entities]
+      summary: Create a Metadata_Entity of the given type.
+      description: |
+        Polymorphic over `EntityType`. The body is validated against
+        the corresponding component schema — see
+        `components/schemas/<Subject|Instrument|Rig|Procedures|...>.json`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              # Polymorphic — the Lambda dispatches on the path param.
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: Entity created.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /entities/{type}/{id}:
+    parameters:
+      - $ref: '#/components/parameters/EntityTypePath'
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      operationId: getEntity
+      tags: [entities]
+      summary: Get a Metadata_Entity by id.
+      responses:
+        '200':
+          description: The entity.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateEntity
+      tags: [entities]
+      summary: Update a Metadata_Entity (creates a revision).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Updated entity.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  # -------------------------------------------------------------------------
+  # Lifecycle (Lifecycle_Lambda)
+  # -------------------------------------------------------------------------
+  /assets/{id}/publish:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      operationId: publishAsset
+      tags: [lifecycle]
+      summary: Transition an asset from registered → published.
+      description: |
+        Requires `validation_status='valid'` (Validation_Lambda is
+        invoked first). Writes a `lifecycle_transition` row on
+        success. Rejected transitions return `INVALID_STATE_TRANSITION`
+        with `details: {current_state, allowed_transitions}` per R27.4.
+      responses:
+        '200':
+          description: Published.
+          content:
+            application/json:
+              schema:
+                $ref: './components/schemas/LifecycleTransition.json'
+        '409':
+          $ref: '#/components/responses/InvalidStateTransition'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /assets/{id}/register:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      operationId: registerAsset
+      tags: [lifecycle]
+      summary: Transition an asset from draft → registered (or archived → registered).
+      responses:
+        '200':
+          description: Registered.
+          content:
+            application/json:
+              schema:
+                $ref: './components/schemas/LifecycleTransition.json'
+        '409':
+          $ref: '#/components/responses/InvalidStateTransition'
+
+  /assets/{id}/archive:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      operationId: archiveAsset
+      tags: [lifecycle]
+      summary: Transition an asset from published → archived.
+      responses:
+        '200':
+          description: Archived.
+          content:
+            application/json:
+              schema:
+                $ref: './components/schemas/LifecycleTransition.json'
+        '409':
+          $ref: '#/components/responses/InvalidStateTransition'
+
+  # -------------------------------------------------------------------------
+  # Validation (Validation_Lambda)
+  # -------------------------------------------------------------------------
+  /validate:
+    post:
+      operationId: validateMetadata
+      tags: [validation]
+      summary: Validate a payload and persist the verdict.
+      description: |
+        Combines aind-data-schema (Biodata_Schema) and any applicable
+        Custom_Schema additively. The verdict is persisted to the
+        target row's `validation_status` / `validation_errors`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [entity_type, entity_id]
+              properties:
+                entity_type:
+                  $ref: './components/schemas/EntityType.json'
+                entity_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Validation result persisted.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [validation_status]
+                properties:
+                  validation_status:
+                    $ref: './components/schemas/ValidationStatus.json'
+                  validation_errors:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+
+  /validate/dry-run:
+    post:
+      operationId: validateMetadataDryRun
+      tags: [validation]
+      summary: Validate a payload without persisting the verdict.
+      description: |
+        Used by the curation UI's real-time inline validation.
+        Leaves the database unchanged (Property 7).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Validation result (not persisted).
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [validation_status]
+                properties:
+                  validation_status:
+                    $ref: './components/schemas/ValidationStatus.json'
+                  validation_errors:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+
+  /schemas/custom:
+    post:
+      operationId: createCustomSchema
+      tags: [validation]
+      summary: Create a Custom_Schema attached to an organization.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [org_id, name, json_schema]
+              properties:
+                org_id:
+                  type: string
+                  format: uuid
+                name:
+                  type: string
+                  minLength: 1
+                json_schema:
+                  type: object
+                  description: Draft 2020-12 JSON Schema body.
+                  additionalProperties: true
+      responses:
+        '201':
+          description: Schema created.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  version:
+                    type: string
+
+  /schemas/{id}/versions:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      operationId: createSchemaVersion
+      tags: [validation]
+      summary: Publish a new version of an existing Custom_Schema.
+      description: |
+        Triggers `schema.version.published` on EventBridge, which
+        fans out to Revalidation_Lambda.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [version, json_schema]
+              properties:
+                version:
+                  type: string
+                json_schema:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '201':
+          description: Version published.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  # -------------------------------------------------------------------------
+  # Search (Search_Lambda)
+  # -------------------------------------------------------------------------
+  /search:
+    get:
+      operationId: search
+      tags: [search]
+      # No security requirement here — public for `lifecycle_state=published`.
+      # The Authorizer still runs for authenticated callers and expands the
+      # visible set to include private data the caller is allowed to see.
+      security:
+        - {}                # public
+        - CognitoJWT: []    # authenticated (broader visibility)
+      summary: Faceted lexical + semantic search.
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: filters
+          in: query
+          description: |
+            Comma-separated `field=value` filters,
+            e.g. `species=Mus musculus,instrument=ephys`.
+          schema:
+            type: string
+        - $ref: '#/components/parameters/ValidatedOnlyQuery'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Search results.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, total]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                  total:
+                    type: integer
+                    minimum: 0
+                  facets:
+                    type: object
+                    additionalProperties: true
+                  degraded_mode:
+                    type: boolean
+                    description: |
+                      `true` when OpenSearch is unavailable and the
+                      Lambda fell back to the Aurora ts_vector path
+                      (R17.12).
+
+  /suggest:
+    get:
+      operationId: suggest
+      tags: [search]
+      summary: Autocomplete suggestions backed by `name_suggest`.
+      parameters:
+        - name: prefix
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Suggestions.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [suggestions]
+                properties:
+                  suggestions:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: [text]
+                      properties:
+                        text:
+                          type: string
+                        score:
+                          type: number
+
+  /search/nl:
+    post:
+      operationId: nlSearch
+      tags: [search]
+      summary: Natural-language → SQL search over Aurora.
+      description: |
+        Pipeline: NL_Cache lookup (sha256 of normalized query) → on
+        miss, Bedrock RAG → EXPLAIN guardrail → parameterized SQL
+        execution under the caller's RLS context. See R18 and design
+        §Components.Search_Lambda (NL).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [query]
+              properties:
+                query:
+                  type: string
+                  minLength: 1
+      responses:
+        '200':
+          description: NL search result.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                  generated_sql:
+                    type: string
+                    description: |
+                      The (parameterized) SQL the Lambda executed.
+                      Surfaced for transparency; sensitive values are
+                      bound, not interpolated.
+                  cache_hit:
+                    type: boolean
+
+  # -------------------------------------------------------------------------
+  # Duplicates (Duplicates_Lambda)
+  # -------------------------------------------------------------------------
+  /duplicates:
+    get:
+      operationId: listDuplicates
+      tags: [duplicates]
+      summary: List flagged duplicate pairs (RLS-filtered).
+      parameters:
+        - name: dismissed
+          in: query
+          schema:
+            type: boolean
+            default: false
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Duplicate flag pairs.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: './components/schemas/DuplicateFlag.json'
+
+  /duplicates/{id}/merge:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      operationId: mergeDuplicate
+      tags: [duplicates]
+      summary: Merge two flagged entities atomically.
+      description: |
+        Single ACID transaction: rewrites all FK references from the
+        absorbed entity to the survivor, deletes the absorbed entity,
+        writes a `change_source='merge'` revision on the survivor.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [survivor_id, absorbed_id]
+              properties:
+                survivor_id:
+                  type: string
+                  format: uuid
+                absorbed_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Merged.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /duplicates/{id}/dismiss:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      operationId: dismissDuplicate
+      tags: [duplicates]
+      summary: Mark a duplicate flag as dismissed.
+      responses:
+        '200':
+          description: Dismissed.
+          content:
+            application/json:
+              schema:
+                $ref: './components/schemas/DuplicateFlag.json'
+
+  # -------------------------------------------------------------------------
+  # Governance (Governance_Lambda)
+  # -------------------------------------------------------------------------
+  /orgs:
+    post:
+      operationId: createOrg
+      tags: [governance]
+      summary: Create a new Organization.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [name, display_name]
+              properties:
+                name:
+                  type: string
+                display_name:
+                  type: string
+      responses:
+        '201':
+          description: Organization created.
+          content:
+            application/json:
+              schema:
+                $ref: './components/schemas/Organization.json'
+
+  /orgs/{id}/spaces:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      operationId: createSpace
+      tags: [governance]
+      summary: Create a Space inside an Organization.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [name, display_name]
+              properties:
+                name:
+                  type: string
+                display_name:
+                  type: string
+                parent_space_id:
+                  type: string
+                  format: uuid
+                  nullable: true
+      responses:
+        '201':
+          description: Space created.
+          content:
+            application/json:
+              schema:
+                $ref: './components/schemas/Space.json'
+
+  /orgs/{id}/users/{uid}/role:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+      - name: uid
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    put:
+      operationId: assignRole
+      tags: [governance]
+      summary: Assign or change a user's role in an Organization.
+      description: |
+        Busts `Access_Filter_Cache:{user_id}` so the next request
+        reflects the new visibility immediately (R20.5).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [role]
+              properties:
+                role:
+                  $ref: './components/schemas/Role.json'
+                space_id:
+                  type: string
+                  format: uuid
+                  nullable: true
+                  description: |
+                    When set, assigns a `user_space_role`; when null,
+                    a `user_org_role` is assigned.
+      responses:
+        '204':
+          description: Role assigned.
+
+  /orgs/{id}/sharing-grants:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      operationId: createSharingGrant
+      tags: [governance]
+      summary: Grant cross-org access (R9.5).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './components/schemas/SharingGrant.json'
+      responses:
+        '201':
+          description: Grant created.
+          content:
+            application/json:
+              schema:
+                $ref: './components/schemas/SharingGrant.json'
+
+  /orgs/{id}/access-requests:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      operationId: requestAccess
+      tags: [governance]
+      summary: Submit an access request (self-service onboarding).
+      description: |
+        Notifies the Org's SNS topic so an org_admin can approve via
+        `PUT /orgs/{id}/users/{uid}/role`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [requested_role]
+              properties:
+                requested_role:
+                  $ref: './components/schemas/Role.json'
+                requested_space_id:
+                  type: string
+                  format: uuid
+                  nullable: true
+                justification:
+                  type: string
+      responses:
+        '202':
+          description: Access request submitted.
+
+  /orgs/{id}/users:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      operationId: provisionUser
+      tags: [governance]
+      summary: Admin-managed provisioning of a user with initial roles.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+                role:
+                  $ref: './components/schemas/Role.json'
+                space_id:
+                  type: string
+                  format: uuid
+                  nullable: true
+      responses:
+        '201':
+          description: User provisioned (and emailed an invite).
+
+  # -------------------------------------------------------------------------
+  # Revisions (Revisions_Lambda)
+  # -------------------------------------------------------------------------
+  /revisions:
+    get:
+      operationId: listRevisions
+      tags: [revisions]
+      summary: Chronological revision history (RLS-filtered).
+      parameters:
+        - name: entity_type
+          in: query
+          required: true
+          schema:
+            $ref: './components/schemas/EntityType.json'
+        - name: entity_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Revision page.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: './components/schemas/EntityRevision.json'
+
+  /revisions/{entity_type}/{id}/at/{revision_number}:
+    parameters:
+      - $ref: '#/components/parameters/EntityTypePath'
+      - $ref: '#/components/parameters/IdPath'
+      - name: revision_number
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+    get:
+      operationId: getRevisionAt
+      tags: [revisions]
+      summary: Point-in-time entity snapshot at a given revision.
+      responses:
+        '200':
+          description: The captured snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: './components/schemas/EntityRevision.json'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # -------------------------------------------------------------------------
+  # Collections (Collections_Lambda)
+  # -------------------------------------------------------------------------
+  /collections:
+    post:
+      operationId: createCollection
+      tags: [collections]
+      summary: Create a Collection.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [org_id, name]
+              properties:
+                org_id:
+                  type: string
+                  format: uuid
+                name:
+                  type: string
+                doi:
+                  type: string
+                  nullable: true
+      responses:
+        '201':
+          description: Collection created.
+
+  /collections/{id}/assets:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      operationId: addCollectionAsset
+      tags: [collections]
+      summary: Add a Data_Asset to a Collection.
+      description: |
+        RLS-checked: caller must be able to see the asset. 403 if not.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [data_asset_id]
+              properties:
+                data_asset_id:
+                  type: string
+                  format: uuid
+      responses:
+        '204':
+          description: Asset added.
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /collections/{id}/children:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      operationId: addCollectionChild
+      tags: [collections]
+      summary: Nest a child Collection under this one.
+      description: |
+        Cycle detection runs server-side via `detect_collection_cycle`
+        Postgres function; on cycle the response is 400
+        `INVALID_HIERARCHY` with `details: {cycle_path: [...]}`
+        (R12.3, R13.3).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [child_id]
+              properties:
+                child_id:
+                  type: string
+                  format: uuid
+      responses:
+        '204':
+          description: Child added.
+        '400':
+          $ref: '#/components/responses/InvalidHierarchy'
+
+  /collections/{id}/doi:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    put:
+      operationId: setCollectionDoi
+      tags: [collections]
+      summary: Set or update a Collection's DOI.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [doi]
+              properties:
+                doi:
+                  type: string
+      responses:
+        '204':
+          description: DOI set.
+
+  # -------------------------------------------------------------------------
+  # Observability (Observability_Lambda)
+  # -------------------------------------------------------------------------
+  /metrics/asset-counts:
+    get:
+      operationId: getAssetCounts
+      tags: [metrics]
+      summary: Per-org / per-space asset counts (RLS-scoped).
+      responses:
+        '200':
+          description: Counts.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /metrics/validation-distribution:
+    get:
+      operationId: getValidationDistribution
+      tags: [metrics]
+      summary: Distribution over `validation_status` values.
+      responses:
+        '200':
+          description: Distribution.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  buckets:
+                    type: object
+                    additionalProperties:
+                      type: integer
+
+  /metrics/growth:
+    get:
+      operationId: getGrowth
+      tags: [metrics]
+      summary: Asset-creation growth over a time range.
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Time-bucketed counts.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [buckets]
+                properties:
+                  buckets:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: [date, count]
+                      properties:
+                        date:
+                          type: string
+                          format: date
+                        count:
+                          type: integer
+
+  # -------------------------------------------------------------------------
+  # Agent (MetaData_Agent_Lambda — proxy to AgentCore)
+  # -------------------------------------------------------------------------
+  /agent/chat:
+    post:
+      operationId: agentChat
+      tags: [agent]
+      summary: Forward a conversation turn to the Metadata Agent.
+      description: |
+        AgentCore streams responses in production; for OpenAPI
+        compatibility the spec models the response as plain JSON.
+        Streaming clients negotiate `Accept: text/event-stream` and
+        receive an SSE stream from the Lambda — this is documented
+        as a vendor extension here rather than via OpenAPI's limited
+        streaming support.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [conversation_id, message]
+              properties:
+                conversation_id:
+                  type: string
+                message:
+                  type: string
+                  minLength: 1
+      responses:
+        '200':
+          description: Agent response (single-shot JSON).
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [conversation_id, response]
+                properties:
+                  conversation_id:
+                    type: string
+                  response:
+                    type: string
+                  proposed_changes:
+                    type: array
+                    description: |
+                      Agent-proposed edits the user must approve before
+                      they go through the API write path (R7.7).
+                    items:
+                      type: object
+                      additionalProperties: true
+
+# ---------------------------------------------------------------------------
+# Reusable components: schemas, parameters, responses, security schemes.
+# ---------------------------------------------------------------------------
+components:
+  securitySchemes:
+    CognitoJWT:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Cognito-issued ID token. Validated by the Authorizer Lambda
+        (`services/shared-layer.auth_context`). Public endpoints
+        (`x-public-endpoints` above) bypass this scheme.
+
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      description: UUID of the resource.
+      schema:
+        type: string
+        format: uuid
+    EntityTypePath:
+      name: type
+      in: path
+      required: true
+      description: Entity type (matches `EntityType` enum).
+      schema:
+        $ref: './components/schemas/EntityType.json'
+    SpaceIdQuery:
+      name: space_id
+      in: query
+      required: false
+      schema:
+        type: string
+        format: uuid
+    LifecycleStateQuery:
+      name: lifecycle_state
+      in: query
+      required: false
+      schema:
+        $ref: './components/schemas/LifecycleState.json'
+    ValidationStatusQuery:
+      name: validation_status
+      in: query
+      required: false
+      schema:
+        $ref: './components/schemas/ValidationStatus.json'
+    ValidatedOnlyQuery:
+      name: validated_only
+      in: query
+      required: false
+      description: |
+        When true, restricts results to `validation_status='valid'`
+        (R15.5, R17.10).
+      schema:
+        type: boolean
+        default: false
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Opaque pagination cursor returned by the previous page.
+      schema:
+        type: string
+
+  responses:
+    # Each Property 14 response wraps `ErrorResponse.json`. Keeping the
+    # response definitions here (not inline) keeps the path entries
+    # readable and ensures a single point of change for the error
+    # contract.
+    Unauthorized:
+      description: Caller is not authenticated (UNAUTHORIZED).
+      content:
+        application/json:
+          schema:
+            $ref: './components/schemas/ErrorResponse.json'
+    Forbidden:
+      description: Caller is authenticated but not authorized (FORBIDDEN).
+      content:
+        application/json:
+          schema:
+            $ref: './components/schemas/ErrorResponse.json'
+    NotFound:
+      description: |
+        Resource does not exist or is hidden by RLS (NOT_FOUND).
+        RLS hides → 404, never 403, to prevent existence side-channels.
+      content:
+        application/json:
+          schema:
+            $ref: './components/schemas/ErrorResponse.json'
+    ValidationFailed:
+      description: aind-data-schema or Custom_Schema rejected the payload.
+      content:
+        application/json:
+          schema:
+            $ref: './components/schemas/ErrorResponse.json'
+    InvalidStateTransition:
+      description: Lifecycle transition rejected by the state machine.
+      content:
+        application/json:
+          schema:
+            $ref: './components/schemas/ErrorResponse.json'
+    InvalidHierarchy:
+      description: Collection cycle detected by `detect_collection_cycle`.
+      content:
+        application/json:
+          schema:
+            $ref: './components/schemas/ErrorResponse.json'
+    MissingProvenance:
+      description: Derived asset lacks `provenance_source_id`.
+      content:
+        application/json:
+          schema:
+            $ref: './components/schemas/ErrorResponse.json'
+    DuplicateEntity:
+      description: |
+        Database-level unique-constraint violation on
+        `data_asset.storage_uri`. Similarity-based duplicates are
+        soft warnings on a 201, never this code.
+      content:
+        application/json:
+          schema:
+            $ref: './components/schemas/ErrorResponse.json'
+    SensitiveAccessDenied:
+      description: Sensitive_Flag protection (R8).
+      content:
+        application/json:
+          schema:
+            $ref: './components/schemas/ErrorResponse.json'
+    RateLimited:
+      description: API Gateway usage plan exceeded.
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 0
+          description: Seconds the caller should wait before retrying.
+      content:
+        application/json:
+          schema:
+            $ref: './components/schemas/ErrorResponse.json'
+
+# Default security applies to every operation unless overridden
+# (e.g. /healthz uses `security: []`, /search adds the no-auth
+# alternative).
+security:
+  - CognitoJWT: []

@@ -1,0 +1,78 @@
+{
+  "index_patterns": ["data_asset*"],
+  "template": {
+    "settings": {
+      "number_of_shards": 2,
+      "number_of_replicas": 1,
+      "knn": true,
+      "knn.algo_param.ef_search": 100,
+      "analysis": {
+        "filter": {
+          "biodata_synonyms": {
+            "type": "synonym_graph",
+            "synonyms_path": "biodata_synonyms.txt",
+            "updateable": false
+          }
+        },
+        "analyzer": {
+          "biodata_text": {
+            "type": "custom",
+            "tokenizer": "standard",
+            "filter": ["lowercase", "biodata_synonyms"]
+          }
+        }
+      }
+    },
+    "mappings": {
+      "properties": {
+        "id":                { "type": "keyword" },
+        "space_id":          { "type": "keyword" },
+        "org_id":            { "type": "keyword" },
+        "is_sensitive":      { "type": "boolean" },
+        "lifecycle_state":   { "type": "keyword" },
+        "validation_status": { "type": "keyword" },
+        "storage_uri":       { "type": "keyword" },
+        "name": {
+          "type": "text",
+          "analyzer": "biodata_text",
+          "fields": {
+            "raw": { "type": "keyword", "ignore_above": 256 }
+          }
+        },
+        "name_suggest": {
+          "type": "search_as_you_type",
+          "max_shingle_size": 3
+        },
+        "species":      { "type": "keyword" },
+        "sex":          { "type": "keyword" },
+        "instrument":   { "type": "keyword" },
+        "organization": { "type": "keyword" },
+        "modalities":   { "type": "keyword" },
+        "description": {
+          "type": "text",
+          "analyzer": "biodata_text"
+        },
+        "description_vec": {
+          "type": "knn_vector",
+          "dimension": 1024,
+          "method": {
+            "name": "hnsw",
+            "engine": "nmslib",
+            "space_type": "cosinesimil",
+            "parameters": {
+              "ef_construction": 128,
+              "m": 24
+            }
+          }
+        },
+        "metadata_flat": {
+          "type": "text",
+          "analyzer": "biodata_text"
+        },
+        "embedding_pending": { "type": "boolean" },
+        "created_at":        { "type": "date" },
+        "updated_at":        { "type": "date" }
+      }
+    }
+  }
+}

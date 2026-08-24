@@ -1,0 +1,27 @@
+# Local-state safety: never commit the bootstrap state file. It contains the
+# KMS key id and bucket/table identifiers and must be stored in secure ops
+# storage, not source control. See README.md.
+terraform.tfstate
+terraform.tfstate.*
+terraform.tfstate.backup
+
+# Terraform working dir
+.terraform/
+.terraform.lock.hcl.local
+
+# Plans
+*.tfplan
+*.tfplan.json
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Local override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Local credential helper (operator-specific, contains no secrets but invokes ada)
+.creds-helper.sh

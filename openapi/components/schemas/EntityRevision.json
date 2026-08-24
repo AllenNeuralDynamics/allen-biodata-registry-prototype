@@ -1,0 +1,123 @@
+{
+  "$defs": {
+    "ChangeSourceKind": {
+      "description": "Provenance of an entity revision (Aurora ``change_source_kind``, R6).",
+      "enum": [
+        "manual",
+        "agent",
+        "api",
+        "merge",
+        "ETL"
+      ],
+      "title": "ChangeSourceKind",
+      "type": "string"
+    },
+    "EntityType": {
+      "description": "Closed set of entity types the revision history tracks.\n\nKept in lockstep with the shared and asset-specific entity tables\nin design.md §Data Models.Aurora.",
+      "enum": [
+        "data_asset",
+        "subject",
+        "instrument",
+        "rig",
+        "procedures",
+        "session",
+        "acquisition",
+        "processing",
+        "quality_control",
+        "data_description"
+      ],
+      "title": "EntityType",
+      "type": "string"
+    }
+  },
+  "$id": "https://allen-biodata-registry.example.com/schemas/EntityRevision.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Immutable revision history row (R6.1, R6.2, R23.3).\n\nMirrors ``entity_revision`` table. Per design.md the underlying\ntable has ``REVOKE UPDATE, DELETE`` so this is, by construction,\nappend-only — the OpenAPI surface exposes only ``GET`` operations\non revisions (see Revisions_Lambda).",
+  "properties": {
+    "change_source": {
+      "$ref": "#/$defs/ChangeSourceKind",
+      "description": "What system action produced this revision."
+    },
+    "entity_id": {
+      "description": "Primary key of the revisioned row.",
+      "format": "uuid",
+      "title": "Entity Id",
+      "type": "string"
+    },
+    "entity_type": {
+      "$ref": "#/$defs/EntityType",
+      "description": "Which table the revision describes."
+    },
+    "id": {
+      "description": "BIGSERIAL revision id. Monotonic across the table.",
+      "minimum": 1,
+      "title": "Id",
+      "type": "integer"
+    },
+    "metadata_snapshot": {
+      "additionalProperties": true,
+      "description": "Full JSONB snapshot of the entity at this revision.",
+      "title": "Metadata Snapshot",
+      "type": "object"
+    },
+    "new_values": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Diff payload — fields that changed (new values).",
+      "title": "New Values"
+    },
+    "previous_values": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Diff payload — fields that changed (old values).",
+      "title": "Previous Values"
+    },
+    "revision_number": {
+      "description": "Per-entity revision counter. ``UNIQUE (entity_type, entity_id, revision_number)`` is enforced at the DB.",
+      "minimum": 1,
+      "title": "Revision Number",
+      "type": "integer"
+    },
+    "timestamp": {
+      "description": "UTC timestamp.",
+      "format": "date-time",
+      "title": "Timestamp",
+      "type": "string"
+    },
+    "user_id": {
+      "description": "User who triggered the revision.",
+      "format": "uuid",
+      "title": "User Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "entity_type",
+    "entity_id",
+    "revision_number",
+    "user_id",
+    "timestamp",
+    "change_source",
+    "metadata_snapshot"
+  ],
+  "title": "EntityRevision",
+  "type": "object"
+}

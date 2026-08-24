@@ -1,0 +1,17 @@
+# Runtime dependencies for the Registration Lambda.
+#
+# Strategy: this Lambda attaches the shared Lambda Layer
+# (`biodata_registry_shared`, Task 12.1), which already ships:
+#   * aind-data-schema     — Pydantic v2 models for biological metadata.
+#   * psycopg[binary]      — Aurora connection driver.
+#   * openapi-core         — OpenAPI 3.0 request validation.
+#   * jsonschema/PyYAML    — pulled in transitively for spec parsing.
+#
+# As a result, this requirements file is intentionally empty at runtime
+# (boto3 is provided by the Lambda Python 3.12 runtime; everything else
+# rides the shared Layer). Listing the same packages here would inflate
+# the function zip and risk version drift versus the Layer.
+#
+# When/if this Lambda needs a dep that the Layer does not expose, add
+# it below — pin to a specific minor range to keep cold-start cost
+# predictable.

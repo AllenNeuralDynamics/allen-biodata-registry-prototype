@@ -1,0 +1,62 @@
+# Test/dev tooling for the Registration Lambda.
+#
+# This project file declares test dependencies and pytest defaults. At
+# runtime (Lambda execution), `requirements.txt` is the source of
+# truth — Terraform packages the code + the runtime deps from
+# `requirements.txt` into a deployment zip; pyproject.toml plays no
+# role in the live image. Runtime imports come from the shared Lambda
+# Layer (biodata_registry_shared, Task 12.1).
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "biodata-registry-registration"
+version = "0.1.0"
+description = "Registration_Lambda — core CRUD for the Allen BioData Registry PoC."
+requires-python = ">=3.12"
+
+# Dev/test deps. The shared Layer already ships aind-data-schema,
+# psycopg, openapi-core, etc.; we install them locally so unit tests
+# can import biodata_registry_shared without bundling the Layer.
+dependencies = [
+    "psycopg[binary]>=3.2.0,<4.0.0",
+    "openapi-core>=0.19.0,<0.24.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+    "hypothesis>=6.100",
+    "hypothesis-jsonschema>=0.23",
+    "aind-data-schema>=2.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config"
+markers = [
+    # Property-based tests in tests/property/. These run hundreds of
+    # Hypothesis examples per parametrized case and are intentionally
+    # slow; allow CI to filter them in/out via -m property /
+    # -m "not property".
+    "property: property-based test (Hypothesis); slow",
+]
+filterwarnings = [
+    # aind-data-schema 2.x's transitive dep ``requests`` raises a
+    # RequestsDependencyWarning on import when urllib3 / chardet
+    # versions don't exactly match its pinned ranges. Not actionable
+    # from this repo and not a correctness issue.
+    "ignore::requests.exceptions.RequestsDependencyWarning",
+    # aind-data-schema 2.x emits Pydantic deprecation warnings on
+    # import (legacy ``Field(..., regex=...)`` style). They are not
+    # actionable from this repo.
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+    # hypothesis-jsonschema and pydantic-core occasionally emit
+    # UserWarnings during very large schema canonicalisation; these
+    # do not affect correctness.
+    "ignore::UserWarning",
+    "error",
+]

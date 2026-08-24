@@ -1,0 +1,64 @@
+{
+  "$id": "https://allen-biodata-registry.example.com/schemas/Space.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Sub-tenant within an organization (R9.1).\n\nMirrors ``space`` table. ``parent_space_id`` is reserved for the\noptional nested-space pattern; left as ``Optional`` to match the\nDDL where the column is nullable for top-level spaces. The\n``(org_id, name)`` uniqueness invariant is enforced by Aurora;\nthe API surface only validates shape here.",
+  "properties": {
+    "created_at": {
+      "description": "Creation timestamp (UTC).",
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "display_name": {
+      "description": "Human-readable space name.",
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "Display Name",
+      "type": "string"
+    },
+    "id": {
+      "description": "Server-generated UUID. Immutable.",
+      "format": "uuid",
+      "title": "Id",
+      "type": "string"
+    },
+    "name": {
+      "description": "Lowercase slug, unique within the organization.",
+      "maxLength": 255,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_-]*$",
+      "title": "Name",
+      "type": "string"
+    },
+    "org_id": {
+      "description": "Parent organization id.",
+      "format": "uuid",
+      "title": "Org Id",
+      "type": "string"
+    },
+    "parent_space_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Parent space when nesting is enabled; ``null`` for top-level spaces. Reserved for future use — the PoC does not nest.",
+      "title": "Parent Space Id"
+    }
+  },
+  "required": [
+    "id",
+    "org_id",
+    "name",
+    "display_name",
+    "created_at"
+  ],
+  "title": "Space",
+  "type": "object"
+}

@@ -1,0 +1,13 @@
+{
+  "$id": "https://allen-biodata-registry.example.com/schemas/LifecycleState.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Data_Asset lifecycle state (Aurora ``lifecycle_state`` enum, R27.1).",
+  "enum": [
+    "draft",
+    "registered",
+    "published",
+    "archived"
+  ],
+  "title": "LifecycleState",
+  "type": "string"
+}

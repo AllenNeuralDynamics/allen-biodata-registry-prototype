@@ -1,0 +1,114 @@
+{
+  "$defs": {
+    "Role": {
+      "description": "Role kinds (mirrors Aurora ``role_kind`` enum, R9.2, R9.7).",
+      "enum": [
+        "org_admin",
+        "space_admin",
+        "data_administrator",
+        "viewer"
+      ],
+      "title": "Role",
+      "type": "string"
+    }
+  },
+  "$id": "https://allen-biodata-registry.example.com/schemas/SharingGrant.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Cross-org sharing entry (R9.5, R9.6).\n\nMirrors ``sharing_grant`` table. The grantee is exactly one of\n``grantee_org_id``, ``grantee_space_id``, or ``grantee_user_id``;\nthe ``CHECK`` constraint at the DB layer enforces \"at least one\"\nbut the API model is stricter — exactly one — so clients cannot\nconstruct ambiguous grants.",
+  "properties": {
+    "created_by": {
+      "description": "User id of the org_admin who created the grant.",
+      "format": "uuid",
+      "title": "Created By",
+      "type": "string"
+    },
+    "expires_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional expiration; ``null`` means the grant is open-ended.",
+      "title": "Expires At"
+    },
+    "granted_at": {
+      "description": "When the grant was created.",
+      "format": "date-time",
+      "title": "Granted At",
+      "type": "string"
+    },
+    "grantee_org_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "When the grantee is an entire organization.",
+      "title": "Grantee Org Id"
+    },
+    "grantee_space_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "When the grantee is a specific space.",
+      "title": "Grantee Space Id"
+    },
+    "grantee_user_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "When the grantee is a single user (admin convenience).",
+      "title": "Grantee User Id"
+    },
+    "granter_org_id": {
+      "description": "The org granting access. Always set.",
+      "format": "uuid",
+      "title": "Granter Org Id",
+      "type": "string"
+    },
+    "id": {
+      "description": "Server-generated UUID. Immutable.",
+      "format": "uuid",
+      "title": "Id",
+      "type": "string"
+    },
+    "role": {
+      "$ref": "#/$defs/Role",
+      "description": "Role conferred on the grantee."
+    }
+  },
+  "required": [
+    "id",
+    "granter_org_id",
+    "role",
+    "granted_at",
+    "created_by"
+  ],
+  "title": "SharingGrant",
+  "type": "object"
+}

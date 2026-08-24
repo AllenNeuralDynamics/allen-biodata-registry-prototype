@@ -1,0 +1,53 @@
+{
+  "$id": "https://allen-biodata-registry.example.com/schemas/ErrorResponse.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Canonical error body emitted by every Lambda (Property 14, R30).\n\nMirrors the structure produced by\n``biodata_registry_shared.errors.make_error_response``. We export\nthis here (not in the shared layer) because the Layer ships\ninside Lambdas, while the OpenAPI spec is a build-time artifact\nconsumed by the client generator.",
+  "properties": {
+    "code": {
+      "description": "Machine-readable error code from the closed enumerated set. See design.md §Error Handling.Error Code Mapping.",
+      "title": "Code",
+      "type": "string"
+    },
+    "details": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "items": {},
+          "type": "array"
+        }
+      ],
+      "description": "Per-code structured payload. ``VALIDATION_FAILED`` returns a list of ``{field, rule}`` entries; ``INVALID_STATE_TRANSITION`` returns ``{current_state, allowed_transitions}``; etc. Always present (never null); empty ``{}`` when the code carries no structured details (e.g. ``SENSITIVE_ACCESS_DENIED``).",
+      "title": "Details"
+    },
+    "message": {
+      "description": "Human-readable summary; never empty.",
+      "minLength": 1,
+      "title": "Message",
+      "type": "string"
+    },
+    "request_id": {
+      "description": "API Gateway / Lambda request id for log correlation. May be empty when the response is shaped outside a request context (testing) but the field is always present.",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "timestamp": {
+      "description": "UTC timestamp; ISO 8601 with millisecond precision.",
+      "format": "date-time",
+      "title": "Timestamp",
+      "type": "string"
+    }
+  },
+  "required": [
+    "code",
+    "message",
+    "details",
+    "request_id",
+    "timestamp"
+  ],
+  "title": "ErrorResponse",
+  "type": "object"
+}

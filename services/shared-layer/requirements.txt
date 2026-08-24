@@ -1,0 +1,33 @@
+# Runtime dependencies for the shared Lambda Layer (biodata_registry_shared).
+#
+# These wheels are pip-installed into `python/` at packaging time so the
+# Layer's site-packages tree exposes them to every business Lambda that
+# attaches the Layer.
+#
+# Pinning rationale
+# -----------------
+# * aind-data-schema — Pydantic v2 models for AIND biological metadata.
+#   Pinned to the 2.x minor line; major bumps are expected to be
+#   breaking, so we require an explicit upgrade exercise. The PoC was
+#   developed against 2.7.x.
+# * psycopg[binary] — Aurora connection driver. We choose psycopg (v3)
+#   over pg8000 (used by the bring-up Lambdas) because business Lambdas
+#   need a real connection-pool story, async support (psycopg.AsyncConnection)
+#   if/when we move to async handlers, and the modern parameter-binding
+#   API. The `[binary]` extra ships a precompiled libpq, so the Layer
+#   zip is portable across developer machines without per-platform
+#   wheel juggling. The Lambda Python 3.12 runtime sits on Amazon Linux
+#   2023; the `[binary]` wheel is the manylinux2014 build, which works
+#   on AL2023 (verified in the Layer build).
+# * openapi-core — request validation against the hand-authored
+#   OpenAPI 3.0 spec. We deliberately do NOT use jsonschema directly:
+#   openapi-core understands $ref, parameter location ($in: query|path|header),
+#   and operation-level oneOf/anyOf, which a raw jsonschema validator
+#   would re-implement.
+# * boto3 is **not** listed — the Lambda Python 3.12 runtime ships a
+#   recent boto3 already. Bundling a second copy in the Layer would
+#   double the cold-start unzip cost and risk version drift versus
+#   the IAM-tied API surface AWS supports for that runtime.
+aind-data-schema>=2.7.0,<3.0.0
+psycopg[binary]>=3.2.0,<4.0.0
+openapi-core>=0.19.0,<0.24.0

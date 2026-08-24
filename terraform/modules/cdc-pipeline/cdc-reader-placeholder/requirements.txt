@@ -1,0 +1,3 @@
+# Placeholder — production cdc-reader will pin psycopg[binary] and boto3.
+# Empty intentionally so the Terraform packager skips the pip install step
+# and the Lambda zip contains only handler.py.

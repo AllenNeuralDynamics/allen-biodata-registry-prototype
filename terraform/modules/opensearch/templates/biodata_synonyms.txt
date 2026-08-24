@@ -1,0 +1,21 @@
+# Allen BioData Registry — biodata synonyms (Solr format).
+#
+# Format: one rule per line. Comma-separated lists expand bidirectionally
+# (every term maps to every other term). Use "=>" for one-way expansions
+# if needed in future tuning. Lines starting with "#" are comments.
+#
+# Validates R17.3 (synonym handling for biodata terms).
+#
+# These are PoC PLACEHOLDERS. The Allen Institute team will provide the
+# canonical list once they review search behavior on real data. Updating
+# this file in production requires re-creating the affected indices —
+# OpenSearch synonym files are read at index-create time only.
+
+ephys, electrophysiology
+ophys, optical physiology, optical-physiology
+two-photon, 2p, 2-photon
+calcium imaging, ca-imaging, ca2+ imaging
+fmri, functional mri, functional-mri
+ihc, immunohistochemistry, immuno-histochemistry
+in-vivo, in vivo, invivo
+in-vitro, in vitro, invitro

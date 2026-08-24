@@ -1,0 +1,18 @@
+# Runtime dependencies for the API Gateway Authorizer Lambda.
+#
+# PyJWT — JWT decode/verify. We use `cryptography` as the signing
+#   backend (PyJWT delegates to it for RS256 verification, the
+#   algorithm Cognito issues).
+# cryptography — RSA key parsing for JWKS verification. PyJWT only
+#   pulls this in when the consumer asks for asymmetric algorithms;
+#   we list it explicitly so the Lambda zip ships a known-good wheel.
+# psycopg[binary] — Aurora connection driver matching the rest of the
+#   stack. The `[binary]` extra ships a precompiled libpq, so the
+#   deployment package is portable across developer machines without
+#   per-platform wheel juggling.
+# boto3 is provided by the Lambda Python 3.12 runtime (used for
+#   `rds.generate_db_auth_token`); we deliberately do not list it
+#   here to avoid bundling a stale duplicate.
+PyJWT>=2.8.0,<3.0.0
+cryptography>=42.0.0,<46.0.0
+psycopg[binary]>=3.2.0,<4.0.0
